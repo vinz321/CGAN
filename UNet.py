@@ -35,7 +35,7 @@ class Decoder(nn.Module):
         super().__init__()
         
         self.seq = nn.Sequential(
-            nn.LazyConvTranspose2d(in_ch, out_ch, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(in_ch, out_ch, 4, 2, 1, bias=False),
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(0.2, True)
         )
@@ -48,32 +48,32 @@ class Decoder(nn.Module):
 
 
 class Unet(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, input_channels):
         super(Unet, self).__init__()
-        #256
-        self.enc1 = Encoder(3, 128) #128
-        self.enc2 = Encoder(128, 128) #64
-        self.enc3 = Encoder(128, 256) #32
-        self.enc4 = Encoder(256, 256) #16
-        self.enc5 = Encoder(256, 512) #8
-        self.enc6 = Encoder(512, 512) #4
+        #256, 7
+        self.enc1 = Encoder(input_channels, 128) #128, 128
+        self.enc2 = Encoder(128, 128) #64, 128
+        self.enc3 = Encoder(128, 256) #32, 256
+        self.enc4 = Encoder(256, 256) #16, 256
+        self.enc5 = Encoder(256, 512) #8, 512
+        self.enc6 = Encoder(512, 512) #4, 512
         self.conv = nn.Conv2d(512, VEC_SIZE, 4, 2, 1) #2
         self.relu = nn.ReLU()
 
         #2
-        self.conv_t = nn.ConvTranspose2d(VEC_SIZE, 1024, 4, 2, 1, bias=False) #4
+        self.conv_t = nn.ConvTranspose2d(VEC_SIZE, 512, 4, 2, 1, bias=False) #4
         self.l_relu = nn.LeakyReLU(0.2, True)
-        self.dec1 = Decoder(1024, 1024) #8
-        self.dec2 = Decoder(1024, 512) #16
-        self.dec3 = Decoder(512, 512) #32
-        self.dec4 = Decoder(512, 256) #64
-        self.dec5 = Decoder(256, 256) #128
+        self.dec1 = Decoder(1024, 512) #8
+        self.dec2 = Decoder(1024, 256) #16
+        self.dec3 = Decoder(512, 256) #32
+        self.dec4 = Decoder(512, 128) #64
+        self.dec5 = Decoder(256, 128) #128
         self.dec6 = Decoder(256, 128) #256
         self.conv7 = nn.Conv2d(128, 3, 1, 1, 0, bias=False)
         self.tanh = nn.Tanh()
 
-    def connection(x, y):
-        return torch.cat((x, y))
+    def connection(self, x, y):
+        return torch.cat((x, y),1)
 
 
     def forward(self,x):
@@ -83,25 +83,26 @@ class Unet(torch.nn.Module):
         x3 = self.enc3(x2)
         x4 = self.enc4(x3)
         x5 = self.enc5(x4)
-        x6 = self.enc5(x5)
+        x6 = self.enc6(x5)#4
         
         x = self.conv(x6)
         x = self.relu(x)
-        x = self.conv_t(x)
-        x = self.tanh(x)
         
-        x = self.dec1(x)
+        x = self.conv_t(x)
+        #x = self.tanh(x)
+        
         x = self.connection(x6, x)
-        x = self.dec2(x)
+        x = self.dec1(x)
         x = self.connection(x5, x)
-        x = self.dec3(x)
+        x = self.dec2(x)
         x = self.connection(x4, x)
-        x = self.dec4(x)
+        x = self.dec3(x)
         x = self.connection(x3, x)
-        x = self.dec5(x)
+        x = self.dec4(x)
         x = self.connection(x2, x)
-        x = self.dec6(x)
+        x = self.dec5(x)
         x = self.connection(x1, x)
+        x = self.dec6(x)
 
         x = self.conv7(x)
         x = self.tanh(x)
