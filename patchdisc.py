@@ -56,5 +56,5 @@ class PatchDiscriminator(nn.Module):
             return nn.Sequential(nn.Conv2d(in_chan, out_chan, 4,1,1, bias=False),
                             nn.LeakyReLU(0.2, True))
 
-    def forward(self, in_data):
+    def forward(self, in_data:torch.Tensor):
         return self.seq(in_data)

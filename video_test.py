@@ -12,20 +12,26 @@ from torch.utils.data import Dataset, DataLoader, random_split, ConcatDataset
 from PIL import Image
 from copy import deepcopy
 from UNet import Unet
+from FlowGen import FlowGen
+from datasets import DNSDatasetCustom
 import numpy as np
 import matplotlib.pyplot as plt 
 
 PATH="C:\\Users\\vicin\Desktop\\PoliTo\\ML_for_CV\\CGAN"
 BATCH_SIZE=16
 
+dataset=DNSDatasetCustom(os.path.dirname(os.path.realpath(__file__)) + '\\dataset\\Cam 1', set_order='d,ds')
+
+flowgen=FlowGen().cuda()
 unet=Unet(7).cuda()
+
 
 if "neverStreets" in os.listdir(PATH):
   print("Loading...")
   try:
     state = torch.load(PATH+"/neverStreets")
     if state:
-      unet.load_state_dict(state["Generator"])
+      flowgen.load_state_dict(state["Generator"])
   except:
     print("Error in load")
 
@@ -79,23 +85,34 @@ class DNSDataset(Dataset):
             return len(self.imgs_col)-1
         return len(self.imgs_col)
     
-dataset_train=DNSDataset(PATH+'\\dataset\\Cam 4',norm=False)
+#dataset_train=DNSDataset(PATH+'\\dataset\\Cam 4',norm=False)
 
 plt.ion()
 plt.show()
 i=0
 to_image=transforms.ToPILImage()
 
-def cat_imgs(current_frame, inputs):
-    return torch.cat([current_frame, inputs.cuda()],0)
+def cat_imgs(current_frame:torch.Tensor, inputs):
+    # print("current_frame: ",current.shape)
+    # cat_img=torch.cat([current_frame.unsqueeze(1), inputs.cuda()],1)
+    d1=inputs[:,0,:,:]
+    # print("d1: ",d1.shape)
+    d2=inputs[:,1,:,:]
+    s2=inputs[:,2,:,:]
+    
+
+    cat_img=torch.stack((d1,current,d2,s2),1).cuda()
+
+    # print("cat imgs ",cat_img.shape)
+    return cat_img
 
 with torch.no_grad():
-    current=dataset_train[0][1].cuda()
+    current=dataset[0][1].cuda()
     while(True):
         plt.figure(1)
         plt.clf()
 
-        current=unet(cat_imgs(current,dataset_train[i][0]).unsqueeze(0))[0]
+        current=flowgen(cat_imgs(current,dataset[i][0].cuda()).unsqueeze(0))[0]
         # print(current.shape)
         plt.imshow( to_image(current.cpu()) )
         #plt.imshow( to_image(dataset_train[i][1].unsqueeze(0).cuda()[0].cpu()) )
