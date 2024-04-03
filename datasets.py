@@ -60,7 +60,7 @@ class DNSDataset(Dataset):
     
 
 class DNSDatasetCustom(Dataset):
-    def __init__(self, img_dir, seg=True, norm=True, depth=True, with_previous=True, set_order='dn,ds', 
+    def __init__(self, img_dir, seg=True, norm=True, depth=True, depth_grayscale=False, with_previous=True, set_order='dn,ds', 
                  transforms=None, target_transforms=None, co_transforms=None, 
                  stacked=True, output_type='c', std_io=False):
         self.img_dir=img_dir
@@ -78,6 +78,7 @@ class DNSDatasetCustom(Dataset):
         self.output_type=output_type
         self.feature_loader=self.load_features
         self.std_io=std_io
+        self.depth_grayscale=depth_grayscale
         if(std_io):
             self.feature_loader=self.load_features_stdio
         if depth:
@@ -141,6 +142,8 @@ class DNSDatasetCustom(Dataset):
     
     def load_features(self, type:str, index:int):
         if(type=='d'):
+            if self.depth_grayscale:
+                return transformF.to_tensor(transformF.to_grayscale(Image.open(self.imgs_depth[index])))
             return transformF.to_tensor(Image.open(self.imgs_depth[index]))[0:3]
         elif(type=='s'):
             return transformF.to_tensor(Image.open(self.imgs_seg[index]))[0:3]
@@ -186,3 +189,9 @@ def full_dns_dataset( dir:str , subfolder_name:str=None ,from_folder:int=1, to_f
 
     
     return ConcatDataset(datasets)
+
+
+if __name__=="__main__":
+    dataset=DNSDatasetCustom(os.path.dirname(os.path.realpath(__file__)) + '\\dataset\\Cam 6', set_order='dc,dns', depth_grayscale=False)
+
+    print(dataset[0])

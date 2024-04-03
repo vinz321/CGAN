@@ -20,43 +20,56 @@ import matplotlib.pyplot as plt
 
 # args=parser.parse_args()
 
+PATH=os.path.dirname(os.path.realpath(__file__))
 
 
 
 class FlowGen(nn.Module):
-    def __init__(self, flow_mul:float =7., flow_mul_train=False, flownet_bn:bool=False ):
+    def __init__(self, flow_mul:float =7., flow_mul_train=False, flownet_bn:bool=False, 
+                 unet_pretrained='.\\models\\neverStreets', flownet_pretrained='.\\flownet\\pretrained\\flownets_EPE1.951.pth.tar', std_dev=.01, mean=0.02 ):
+        global PATH
         super(FlowGen, self).__init__()
+        self.std_dev=std_dev
+        self.mean=mean
         self.args=Namespace(rgb_max=1., fp16=False)
+        self.flownet_pretrained=flownet_pretrained
+        self.unet_pretrained=unet_pretrained
         # self.resample=Resample2d()
         self.flow_mul=torch.scalar_tensor(flow_mul,requires_grad=flow_mul_train).cuda()
 
 
-        self.flownet1=FlowNetS(flownet_bn)
-        dict = torch.load(os.path.dirname(os.path.realpath(__file__))+'\\flownet\\pretrained\\flownets_EPE1.951.pth.tar')
-        print(dict.keys())
-        self.flownet1.load_state_dict(dict["state_dict"])       
-
+        self.flownet1=FlowNetS(flownet_bn)  
+        self.flownet1.requires_grad_(False)
         # dict = torch.load(os.path.dirname(os.path.realpath(__file__))+'\\flownet2\\pretrainedmodels\\FlowNet2.pth.tar')
 
         # self.flownet2=FlowNet2(self.args, div_flow=200)
         # self.flownet2.load_state_dict(dict["state_dict"])
-        # self.flownet2.requires_grad_(False)
         #self.flownet2.flownetfusion.deconv1.requires_grad_(True)
-
         self.unet=Unet(7)
+        self.unet.requires_grad_(False)
 
-    def reload_flownet(self):
-        dict = torch.load(os.path.dirname(os.path.realpath(__file__))+'\\flownet\\pretrained\\flownets_EPE1.951.pth.tar')
+        self.unet2=Unet(3)
+        
+    
+
+    def reload_pretrained(self):
+        dict = torch.load(os.path.join(PATH, self.flownet_pretrained))
         print(dict.keys())
-        self.flownet1.load_state_dict(dict["state_dict"])       
+        self.flownet1.load_state_dict(dict["state_dict"])  
+
+        dict = torch.load(os.path.join(PATH, self.unet_pretrained))
+        print(dict.keys())
+        self.unet.load_state_dict(dict["Generator"])       
 
 
     def forward(self, x):
         
         depth_1=x[:,0:3,:,:]
         img_1=x[:,3:6,:,:]
+        
         depth_2=x[:,6:9,:,:]
         seg_2=x[:,9:12,:,:]
+        norm_2=x[:,12:15,:,:]
 
         # x1=x1.expand((-1,3,-1,-1,-1))
         # x2=x2.expand((-1,3,-1,-1,-1))
@@ -72,18 +85,24 @@ class FlowGen(nn.Module):
         w=w.view([1,1,-1,1]).repeat([1,64,1,1]).cuda() 
         h=h.view([1,-1,1,1]).repeat([1,1,64,1]).cuda()
 
-        add_dim=(-flow[0].permute(0,2,3,1)*self.flow_mul+ 2*torch.cat([w,h], 3))/63 -1
-
+        if(self.training):
+            add_dim=(-flow[0].permute(0,2,3,1)*self.flow_mul+ 2*torch.cat([w,h], 3))/63 -1
+        else:
+            add_dim=(-flow.permute(0,2,3,1)*self.flow_mul+ 2*torch.cat([w,h], 3))/63 -1
         upsampled=torch.nn.functional.interpolate(add_dim.permute(0,3,1,2), [256,256], antialias='true', mode='bilinear')
         warped_img=grid_sample(img_1, upsampled.permute(0,2,3,1))
 
+        warped_img+=(torch.randn(warped_img.size())*self.std_dev+self.mean).cuda()
+
         depth_2=x[:,6,:,:].unsqueeze(1)
-        cat_imgs=torch.cat([warped_img,depth_2,seg_2],1)
+        cat_imgs=torch.cat([depth_2, norm_2, seg_2],1)
 
         o=self.unet(cat_imgs)
-        #warped_flow=self.resample(x1.squeeze(2), flow)
-        # torch.cat([flow[0],zero_layer],1)
-        return o
+        
+        # w1*Fi +w2* Warp(Fi-1) 
+        o2=self.unet2((o*3+warped_img)/4)
+
+        return o2
 
 
 if __name__=='__main__':
@@ -99,26 +118,4 @@ if __name__=='__main__':
 
     print("Combined: "+str(combined_img.shape))
     flow=FlowGen().cuda()
-    summary(flow, (12,256,256))
-
-
-### Test FlowNet e Warp ###
-# warped=flow(combined_img)
-# upsampled=torch.nn.functional.interpolate(warped[1].permute(0,3,1,2), [256,256], antialias='true', mode='bilinear')
-# print(upsampled.shape)
-# warped_img=grid_sample(img_1.cuda(), upsampled.permute(0,2,3,1))
-# print(warped)
-
-# plt.subplot(221)
-# plt.imshow(depth_1.squeeze(1).permute(1,2,0).cpu())
-# plt.subplot(222)
-# plt.imshow(depth_2.squeeze(1).permute(1,2,0).cpu())
-# plt.subplot(223)
-# plt.imshow(warped[0].squeeze(0).permute(1,2,0).detach().cpu().numpy())
-# plt.subplot(224)
-# plt.imshow(warped_img.squeeze(0).permute(1,2,0).detach().cpu().numpy())
-# plt.show()
-
-### FINE TEST ###
-
-
+    summary(flow, (15,256,256))
