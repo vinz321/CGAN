@@ -17,29 +17,40 @@ from datasets import DNSDatasetCustom
 import numpy as np
 import matplotlib.pyplot as plt 
 import argparse 
-PATH="C:\\Users\\vicin\Desktop\\PoliTo\\ML_for_CV\\CGAN"
+PATH=os.path.dirname(os.path.realpath(__file__))
 BATCH_SIZE=16
 
 
-flowgen=FlowGen().cuda().eval()
-unet=Unet(7).cuda()
+flowgen=FlowGen(unet_pretrained='.\\models\\neverStreetsUnet.pth.tar').cuda().eval()
+flowgen.reload_pretrained()
+
+unet=Unet(7).cuda().eval()
 
 parser=argparse.ArgumentParser()
 
 parser.add_argument("model", choices=('unet', 'flowgen'))
-parser.add_argument("--modelpath", type=str, default='.\\neverStreets')
+parser.add_argument("--modelpath", type=str, default='.\\neverStreets.pth.tar')
 parser.add_argument("--dsorder", type=str, default='d,dns')
 
 args=parser.parse_args()
-dataset=DNSDatasetCustom(os.path.dirname(os.path.realpath(__file__)) + '\\dataset\\Cam 5', set_order=args.dsorder, depth_grayscale=args.model=='unet')
+dataset=DNSDatasetCustom(os.path.dirname(os.path.realpath(__file__)) + '\\dataset\\Cam 11', set_order=args.dsorder, depth_grayscale=args.model=='unet')
 
 if args.model=='unet':
     model=unet
 if args.model=='flowgen':
     model=flowgen
 
-
+print(PATH)
 print("Loading...")
+try:
+    state = torch.load(os.path.join(PATH,'.\\models\\neverStreetsUnet.pth.tar'))
+    if state:
+        unet.load_state_dict(state["Generator"])
+        print(dict(state).keys())
+        print(state['epoch'])
+except:
+    print("Error in load")
+
 try:
     state = torch.load(os.path.join(PATH,args.modelpath))
     if state:
@@ -49,7 +60,16 @@ try:
 except:
     print("Error in load")
 
-
+print(dataset[0][0].shape)
+plt.subplot(2,2,1)
+plt.imshow(dataset[0][0][0:3].cuda().squeeze().permute([1,2,0]).cpu().detach().numpy())
+plt.subplot(2,2,2)
+plt.imshow(dataset[0][0][3:6].squeeze().permute([1,2,0]).cpu().numpy())
+plt.subplot(2,2,3)
+plt.imshow(dataset[0][0][6:9].squeeze().permute([1,2,0]).cpu().numpy())
+plt.subplot(2,2,4)
+plt.imshow(dataset[0][0][9:12].squeeze().permute([1,2,0]).cpu().numpy())
+plt.show()
 plt.ion()
 plt.show()
 i=0
@@ -64,7 +84,7 @@ def cat_imgs(current_frame:torch.Tensor, inputs):
         d2=inputs[3:6,:,:]
         n2=inputs[6:9,:,:]
         s2=inputs[9:12,:,:]
-        cat_img=torch.cat((d1,current,d2,n2,s2 ), 0).cuda()
+        cat_img=torch.cat((d1,current,d2,s2,n2 ), 0).cuda()
     elif args.model=='unet':
         cat_img=inputs
     
