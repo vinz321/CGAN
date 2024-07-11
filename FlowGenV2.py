@@ -7,8 +7,6 @@ from torch.nn.functional import grid_sample
 import numpy as np
 from PIL import Image
 import os
-from CGAN.flownet2.models import FlowNet2
-from CGAN.flownet2.networks.resample2d_package.resample2d import Resample2d
 from CGAN.flownet.models.FlowNetS import FlowNetS
 from UNet import Unet
 import matplotlib.pyplot as plt
@@ -88,7 +86,7 @@ class FlowGen(nn.Module):
         if(self.training):
             add_dim=(-flow[0].permute(0,2,3,1)*self.flow_mul+ 2*torch.cat([w,h], 3))/63 -1
         else:
-            add_dim=(-flow.permute(0,2,3,1)*self.flow_mul+ 2*torch.cat([w,h], 3))/63 -1
+            add_dim=(-flow.permute(0,2,3,1)*self.flow_mul + 2*torch.cat([w,h], 3))/63 -1
         upsampled=torch.nn.functional.interpolate(add_dim.permute(0,3,1,2), [256,256], antialias='true', mode='bilinear')
         warped_img=grid_sample(img_1, upsampled.permute(0,2,3,1))
 

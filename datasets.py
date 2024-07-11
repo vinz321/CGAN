@@ -130,6 +130,7 @@ class DNSDatasetCustom(Dataset):
                 for i in range(0,len(input)):
                     input[i]=self.transforms(input[i])
             if self.target_transforms:
+                # print(f"{type(target)}")
                 target=self.target_transforms(target)
         # print(input.shape)
         return input,target
@@ -173,7 +174,7 @@ class DNSDatasetFull(Dataset):
         if(subfolder_name != None):
             dirs=[i for i in dirs if subfolder_name in i]
         
-        dirs=[i for i in dirs if i[-1].isdigit() and int(i[-1]) in range(from_folder,to_folder+1)]
+        dirs=[i for i in dirs if i.split(" ")[1].isdigit() and int(i.split(" ")[1]) in range(from_folder,to_folder+1)]
 
 
 def full_dns_dataset( dir:str , subfolder_name:str=None ,from_folder:int=1, to_folder:int=7, set_order='dc,ds', transforms=None, target_transforms=None, stacked=True, output_type='c', co_transform=None, pil_image=False):
@@ -181,7 +182,7 @@ def full_dns_dataset( dir:str , subfolder_name:str=None ,from_folder:int=1, to_f
     if(subfolder_name != None):
         dirs=[i for i in dirs if subfolder_name in i]
     
-    dirs=[i for i in dirs if i[-1].isdigit() and int(i[-1]) in range(from_folder,to_folder+1)]
+    dirs=[i for i in dirs if i.split(" ")[1].isdigit() and int(i.split(" ")[1]) in range(from_folder,to_folder+1)]
 
     datasets=[]
     for i in dirs:

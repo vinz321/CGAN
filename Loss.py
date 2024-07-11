@@ -10,7 +10,7 @@ class LossCustom(nn.Module):
         self.l1_loss = nn.L1Loss()
         # self.kl_loss = nn.KLDivLoss()
     
-    def wasserstein_loss(self, output, target):
+    def mpe_loss(self, output, target):
         return torch.mean(output*target)
         
     def forward(self, output, target):
@@ -24,13 +24,13 @@ class LossCustomDisc(nn.Module):
     def __init__(self, type='wl'):
         super(LossCustomDisc, self).__init__()
         if type=='wl':
-            self.loss=self.wasserstein_loss
+            self.loss=self.mpe_loss
         elif type=='kl':
             self.loss=nn.KLDivLoss()
         elif type=='mse':
             self.loss=nn.MSELoss()
     
-    def wasserstein_loss(self, output, target):
+    def mpe_loss(self, output, target):
         return torch.mean(output*target)
     
     def forward(self, output, target):
